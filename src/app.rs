@@ -1,5 +1,4 @@
-#[derive(serde::Deserialize, serde::Serialize)]
-#[derive(PartialEq)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq)]
 pub enum Unit {
     Milliseconds,
     Seconds,
@@ -58,7 +57,6 @@ impl eframe::App for App {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::warn_if_debug_build(ui);
             ui.heading("Echo Blend");
@@ -71,31 +69,37 @@ impl eframe::App for App {
             if ui.button("Open file…").clicked() {
                 // Logic for opening a file goes here
             }
-            
+
             egui::Grid::new("time_grid")
                 .spacing([50.0, 15.0])
                 .show(ui, |ui| {
                     // Make the DragValue widgets a bit wider:
                     ui.spacing_mut().interact_size.x = 50.0;
 
-                    ui.label("Start Time: ").on_hover_text("The time in the song where the loop will start.");
-                    ui.add(egui::DragValue::new(&mut self.start_time).speed(5)).on_hover_text("The time in the song where the loop will start.");
+                    ui.label("Start Time: ")
+                        .on_hover_text("The time in the song where the loop will start.");
+                    ui.add(egui::DragValue::new(&mut self.start_time).speed(5))
+                        .on_hover_text("The time in the song where the loop will start.");
                     ui.horizontal(|ui| {
                         ui.selectable_value(&mut self.start_unit, Unit::Milliseconds, "ms");
                         ui.selectable_value(&mut self.start_unit, Unit::Seconds, "s");
                     });
                     ui.end_row();
 
-                    ui.label("End Time: ").on_hover_text("The time in the song where the loop will end.");
-                    ui.add(egui::DragValue::new(&mut self.end_time).speed(5)).on_hover_text("The time in the song where the loop will end.");
+                    ui.label("End Time: ")
+                        .on_hover_text("The time in the song where the loop will end.");
+                    ui.add(egui::DragValue::new(&mut self.end_time).speed(5))
+                        .on_hover_text("The time in the song where the loop will end.");
                     ui.horizontal(|ui| {
                         ui.selectable_value(&mut self.end_unit, Unit::Milliseconds, "ms");
                         ui.selectable_value(&mut self.end_unit, Unit::Seconds, "s");
                     });
                     ui.end_row();
 
-                    ui.label("Crossfade Duration: ").on_hover_text("The time it takes for the loop to fade in and out.");
-                    ui.add(egui::DragValue::new(&mut self.crossfade_duration)).on_hover_text("The time it takes for the loop to fade in and out.");
+                    ui.label("Crossfade Duration: ")
+                        .on_hover_text("The time it takes for the loop to fade in and out.");
+                    ui.add(egui::DragValue::new(&mut self.crossfade_duration))
+                        .on_hover_text("The time it takes for the loop to fade in and out.");
                     ui.horizontal(|ui| {
                         ui.selectable_value(&mut self.crossfade_unit, Unit::Milliseconds, "ms");
                         ui.selectable_value(&mut self.crossfade_unit, Unit::Seconds, "s");
@@ -103,7 +107,8 @@ impl eframe::App for App {
                     ui.end_row();
 
                     ui.label("Total Duration (hrs): ");
-                    ui.add(egui::Slider::new(&mut self.total_duration, 1..=10)).on_hover_text("The total duration of the loop.");
+                    ui.add(egui::Slider::new(&mut self.total_duration, 1..=10))
+                        .on_hover_text("The total duration of the loop.");
                 });
 
             ui.horizontal(|ui| {
