@@ -69,12 +69,8 @@ pub fn run_ffmpeg(
     // Check the process's exit status
     match cmd.wait() {
         Ok(status) if status.success() => Ok(()),
-        Ok(status) => {
-            Err(format!("ffmpeg exited with error code: {}", status))
-        }
-        Err(e) => {
-            Err(e.to_string())
-        }
+        Ok(status) => Err(format!("ffmpeg exited with error code: {}", status)),
+        Err(e) => Err(e.to_string()),
     }
 }
 

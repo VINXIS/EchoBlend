@@ -253,7 +253,7 @@ impl eframe::App for App {
             if self.ffmpeg_path.is_empty() {
                 if !self.ffmpeg_path_check {
                     self.ffmpeg_path_check = true;
-                    if let Ok(_) = std::process::Command::new("ffmpeg").output() {
+                    if std::process::Command::new("ffmpeg").output().is_ok() {
                         self.ffmpeg_path = "ffmpeg".to_string();
                     }
                 }
@@ -396,7 +396,9 @@ fn ffmpeg_button_functionality(app: &mut App) {
 
 fn initial_central_panel(app: &mut App, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
-        ui.label("This program requires FFMPEG.\nPlease provide the path to the FFMPEG executable.");
+        ui.label(
+            "This program requires FFMPEG.\nPlease provide the path to the FFMPEG executable.",
+        );
         if ui.button("Browse for ffmpeg.exe").clicked() {
             ffmpeg_button_functionality(app);
         } else if std::env::consts::OS == "windows" && ui.button("Download FFMPEG").clicked() {

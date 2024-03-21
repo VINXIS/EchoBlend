@@ -62,7 +62,7 @@ pub fn create_loop(
             thread_finished.send(Ok(true)).unwrap();
             return;
         }
-        
+
         if crossfade_s > 0.0 {
             tx.send(Ok(app::ConsoleText::Program(
                 "Rendering crossfade sample 1...".to_string(),
@@ -222,17 +222,27 @@ pub fn create_loop(
         } else {
             // Create an ffmpeg concat list txt file
             let mut concat_list = std::fs::File::create(&concat_list_file_name).unwrap();
-            concat_list.write_all(format!("file '{}'\n", &intro_file_name).as_bytes()).unwrap();
+            concat_list
+                .write_all(format!("file '{}'\n", &intro_file_name).as_bytes())
+                .unwrap();
             for _ in 0..loop_count {
                 if crossfade_s > 0.0 {
-                    concat_list.write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes()).unwrap();
+                    concat_list
+                        .write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes())
+                        .unwrap();
                 }
-                concat_list.write_all(format!("file '{}'\n", &loop_file_name).as_bytes()).unwrap();
+                concat_list
+                    .write_all(format!("file '{}'\n", &loop_file_name).as_bytes())
+                    .unwrap();
             }
             if crossfade_s > 0.0 {
-                concat_list.write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes()).unwrap();
+                concat_list
+                    .write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes())
+                    .unwrap();
             }
-            concat_list.write_all(format!("file '{}'\n", &outro_file_name).as_bytes()).unwrap();
+            concat_list
+                .write_all(format!("file '{}'\n", &outro_file_name).as_bytes())
+                .unwrap();
 
             cmd.append(&mut vec![
                 "-f",
