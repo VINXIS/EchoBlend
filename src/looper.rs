@@ -18,6 +18,29 @@ pub fn create_loop(
 ) {
     let thread_finished = tx_finished.clone();
     std::thread::spawn(move || {
+        // Generate unique file names to avoid conflicts
+        let intro_file_name = format!("intro_echo_blend_{}.wav", std::process::id());
+        let outro_file_name = format!("outro_echo_blend_{}.wav", std::process::id());
+        let loop_file_name = format!("loop_echo_blend_{}.wav", std::process::id());
+        let crossfade_1_file_name = format!("crossfade_echo_blend_1_{}.wav", std::process::id());
+        let crossfade_2_file_name = format!("crossfade_echo_blend_2_{}.wav", std::process::id());
+        let crossfade_file_name = format!("crossfade_echo_blend_{}.wav", std::process::id());
+        let concat_list_file_name = format!("concat_list_echo_blend_{}.txt", std::process::id());
+
+        if crossfade_s == 0.0 {
+            tx.send(Ok(app::ConsoleText::Program(
+                "Crossfade duration is 0, skipping crossfade...".to_string(),
+            )))
+            .unwrap();
+        }
+
+        if is_test {
+            tx.send(Ok(app::ConsoleText::Program(
+                "Test run, skipping loop segment...".to_string(),
+            )))
+            .unwrap();
+        }
+
         tx.send(Ok(app::ConsoleText::Program(
             "Rendering intro...".to_string(),
         )))
@@ -30,7 +53,7 @@ pub fn create_loop(
                 &file_path,
                 "-t",
                 &(end_s - crossfade_s).to_string(),
-                "intro.wav",
+                &intro_file_name,
             ],
             &tx,
         )
@@ -38,111 +61,115 @@ pub fn create_loop(
         {
             thread_finished.send(Ok(true)).unwrap();
             return;
+        }
+        
+        if crossfade_s > 0.0 {
+            tx.send(Ok(app::ConsoleText::Program(
+                "Rendering crossfade sample 1...".to_string(),
+            )))
+            .unwrap();
+            if execute_ffmpeg_command(
+                &ffmpeg_path,
+                &[
+                    "-y",
+                    "-i",
+                    &file_path,
+                    "-ss",
+                    &format!("{}", end_s - crossfade_s),
+                    "-t",
+                    &crossfade_s.to_string(),
+                    "-af",
+                    &format!("afade=t=out:st={}:d={}", end_s - crossfade_s, crossfade_s),
+                    &crossfade_1_file_name,
+                ],
+                &tx,
+            )
+            .is_err()
+            {
+                thread_finished.send(Ok(true)).unwrap();
+                return;
+            }
+            tx.send(Ok(app::ConsoleText::Program(
+                "Rendering crossfade sample 2...".to_string(),
+            )))
+            .unwrap();
+            if execute_ffmpeg_command(
+                &ffmpeg_path,
+                &[
+                    "-y",
+                    "-i",
+                    &file_path,
+                    "-ss",
+                    &format!("{}", start_s - crossfade_s),
+                    "-t",
+                    &crossfade_s.to_string(),
+                    "-af",
+                    &format!("afade=t=in:st={}:d={}", start_s - crossfade_s, crossfade_s),
+                    &crossfade_2_file_name,
+                ],
+                &tx,
+            )
+            .is_err()
+            {
+                thread_finished.send(Ok(true)).unwrap();
+                return;
+            }
+            tx.send(Ok(app::ConsoleText::Program(
+                "Rendering crossfade...".to_string(),
+            )))
+            .unwrap();
+            if execute_ffmpeg_command(
+                &ffmpeg_path,
+                &[
+                    "-y",
+                    "-i",
+                    &crossfade_1_file_name,
+                    "-i",
+                    &crossfade_2_file_name,
+                    "-filter_complex",
+                    "amix=inputs=2:duration=first:dropout_transition=0:normalize=0",
+                    &crossfade_file_name,
+                ],
+                &tx,
+            )
+            .is_err()
+            {
+                thread_finished.send(Ok(true)).unwrap();
+                return;
+            }
+
+            tx.send(Ok(app::ConsoleText::Program(
+                "Deleting crossfade samples...".to_string(),
+            )))
+            .unwrap();
+            std::fs::remove_file(crossfade_1_file_name).unwrap();
+            std::fs::remove_file(crossfade_2_file_name).unwrap();
         }
 
-        tx.send(Ok(app::ConsoleText::Program(
-            "Rendering crossfade sample 1...".to_string(),
-        )))
-        .unwrap();
-        if execute_ffmpeg_command(
-            &ffmpeg_path,
-            &[
-                "-y",
-                "-i",
-                &file_path,
-                "-ss",
-                &format!("{}", end_s - crossfade_s),
-                "-t",
-                &crossfade_s.to_string(),
-                "-af",
-                &format!("afade=t=out:st={}:d={}", end_s - crossfade_s, crossfade_s),
-                "crossfade1.wav",
-            ],
-            &tx,
-        )
-        .is_err()
-        {
-            thread_finished.send(Ok(true)).unwrap();
-            return;
-        }
-        tx.send(Ok(app::ConsoleText::Program(
-            "Rendering crossfade sample 2...".to_string(),
-        )))
-        .unwrap();
-        if execute_ffmpeg_command(
-            &ffmpeg_path,
-            &[
-                "-y",
-                "-i",
-                &file_path,
-                "-ss",
-                &format!("{}", start_s - crossfade_s),
-                "-t",
-                &crossfade_s.to_string(),
-                "-af",
-                &format!("afade=t=in:st={}:d={}", start_s - crossfade_s, crossfade_s),
-                "crossfade2.wav",
-            ],
-            &tx,
-        )
-        .is_err()
-        {
-            thread_finished.send(Ok(true)).unwrap();
-            return;
-        }
-        tx.send(Ok(app::ConsoleText::Program(
-            "Rendering crossfade...".to_string(),
-        )))
-        .unwrap();
-        if execute_ffmpeg_command(
-            &ffmpeg_path,
-            &[
-                "-y",
-                "-i",
-                "crossfade1.wav",
-                "-i",
-                "crossfade2.wav",
-                "-filter_complex",
-                "amix=inputs=2:duration=first:dropout_transition=0:normalize=0",
-                "crossfade.wav",
-            ],
-            &tx,
-        )
-        .is_err()
-        {
-            thread_finished.send(Ok(true)).unwrap();
-            return;
-        }
-
-        tx.send(Ok(app::ConsoleText::Program(
-            "Deleting crossfade samples...".to_string(),
-        )))
-        .unwrap();
-        std::fs::remove_file("crossfade1.wav").unwrap();
-        std::fs::remove_file("crossfade2.wav").unwrap();
-
-        tx.send(Ok(app::ConsoleText::Program(
-            "Rendering loop segment...".to_string(),
-        )))
-        .unwrap();
-        if execute_ffmpeg_command(
-            &ffmpeg_path,
-            &[
-                "-y",
-                "-i",
-                &file_path,
-                "-ss",
-                &start_s.to_string(),
-                "-t",
-                (end_s - start_s - crossfade_s).to_string().as_str(),
-                "loop.wav",
-            ],
-            &tx,
-        )
-        .is_err()
-        {
-            thread_finished.send(Ok(true)).unwrap();
-            return;
+        if !is_test {
+            tx.send(Ok(app::ConsoleText::Program(
+                "Rendering loop segment...".to_string(),
+            )))
+            .unwrap();
+            if execute_ffmpeg_command(
+                &ffmpeg_path,
+                &[
+                    "-y",
+                    "-i",
+                    &file_path,
+                    "-ss",
+                    &start_s.to_string(),
+                    "-t",
+                    (end_s - start_s - crossfade_s).to_string().as_str(),
+                    &loop_file_name,
+                ],
+                &tx,
+            )
+            .is_err()
+            {
+                thread_finished.send(Ok(true)).unwrap();
+                return;
+            }
         }
 
         tx.send(Ok(app::ConsoleText::Program(
@@ -157,7 +184,7 @@ pub fn create_loop(
                 &file_path,
                 "-ss",
                 &start_s.to_string(),
-                "outro.wav",
+                &outro_file_name,
             ],
             &tx,
         )
@@ -169,31 +196,43 @@ pub fn create_loop(
 
         let mut cmd = vec!["-y"];
         if is_test {
-            cmd.append(&mut vec![
-                "-i",
-                "intro.wav",
-                "-i",
-                "crossfade.wav",
-                "-i",
-                "loop.wav",
-                "-i",
-                "crossfade.wav",
-                "-i",
-                "outro.wav",
-                "-filter_complex",
-                "concat=n=5:v=0:a=1",
-                &output_path,
-            ]);
+            if crossfade_s > 0.0 {
+                cmd.append(&mut vec![
+                    "-i",
+                    &intro_file_name,
+                    "-i",
+                    &crossfade_file_name,
+                    "-i",
+                    &outro_file_name,
+                    "-filter_complex",
+                    "concat=n=3:v=0:a=1",
+                    &output_path,
+                ]);
+            } else {
+                cmd.append(&mut vec![
+                    "-i",
+                    &intro_file_name,
+                    "-i",
+                    &outro_file_name,
+                    "-filter_complex",
+                    "concat=n=2:v=0:a=1",
+                    &output_path,
+                ]);
+            }
         } else {
             // Create an ffmpeg concat list txt file
-            let mut concat_list = std::fs::File::create("concat_list.txt").unwrap();
-            concat_list.write_all(b"file 'intro.wav'\n").unwrap();
+            let mut concat_list = std::fs::File::create(&concat_list_file_name).unwrap();
+            concat_list.write_all(format!("file '{}'\n", &intro_file_name).as_bytes()).unwrap();
             for _ in 0..loop_count {
-                concat_list.write_all(b"file 'crossfade.wav'\n").unwrap();
-                concat_list.write_all(b"file 'loop.wav'\n").unwrap();
+                if crossfade_s > 0.0 {
+                    concat_list.write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes()).unwrap();
+                }
+                concat_list.write_all(format!("file '{}'\n", &loop_file_name).as_bytes()).unwrap();
             }
-            concat_list.write_all(b"file 'crossfade.wav'\n").unwrap();
-            concat_list.write_all(b"file 'outro.wav'\n").unwrap();
+            if crossfade_s > 0.0 {
+                concat_list.write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes()).unwrap();
+            }
+            concat_list.write_all(format!("file '{}'\n", &outro_file_name).as_bytes()).unwrap();
 
             cmd.append(&mut vec![
                 "-f",
@@ -201,7 +240,7 @@ pub fn create_loop(
                 "-safe",
                 "0",
                 "-i",
-                "concat_list.txt",
+                &concat_list_file_name,
             ]);
             if output_path.ends_with(".mp3") {
                 cmd.push("-q:a");
@@ -225,11 +264,15 @@ pub fn create_loop(
             "Deleting segments...".to_string(),
         )))
         .unwrap();
-        std::fs::remove_file("concat_list.txt").unwrap_or_default();
-        std::fs::remove_file("intro.wav").unwrap();
-        std::fs::remove_file("crossfade.wav").unwrap();
-        std::fs::remove_file("loop.wav").unwrap();
-        std::fs::remove_file("outro.wav").unwrap();
+        std::fs::remove_file(concat_list_file_name).unwrap_or_default();
+        std::fs::remove_file(intro_file_name).unwrap();
+        std::fs::remove_file(outro_file_name).unwrap();
+        if !is_test {
+            std::fs::remove_file(loop_file_name).unwrap();
+        }
+        if crossfade_s > 0.0 {
+            std::fs::remove_file(crossfade_file_name).unwrap();
+        }
 
         tx.send(Ok(app::ConsoleText::Program("Done!".to_string())))
             .unwrap();
