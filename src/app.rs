@@ -32,6 +32,7 @@ pub struct App {
     pub end_unit: Unit,
     pub crossfade_unit: Unit,
 
+    ffmpeg_path_check: bool,
     ffmpeg_loading: bool,
     file_load: bool,
     error_window: bool,
@@ -52,6 +53,7 @@ impl Default for App {
     fn default() -> Self {
         Self {
             ffmpeg_path: String::new(),
+            ffmpeg_path_check: false,
             ffmpeg_loading: false,
             file: egui::DroppedFile::default(),
             file_load: false,
@@ -86,6 +88,7 @@ impl App {
     pub fn save_state_clone(&self) -> Self {
         Self {
             ffmpeg_path: self.ffmpeg_path.clone(),
+            ffmpeg_path_check: false,
             ffmpeg_loading: false,
             file: egui::DroppedFile::default(),
             file_load: false,
@@ -248,20 +251,19 @@ impl eframe::App for App {
 
             // Initial state if no ffmpeg path is provided
             if self.ffmpeg_path.is_empty() {
+                if !self.ffmpeg_path_check {
+                    self.ffmpeg_path_check = true;
+                    if let Ok(_) = std::process::Command::new("ffmpeg").output() {
+                        self.ffmpeg_path = "ffmpeg".to_string();
+                    }
+                }
                 initial_central_panel(self, ui);
                 return;
             };
 
             ui.horizontal(|ui| {
                 if ui.button("Change FFMPEG Path").clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_file() {
-                        if let Err(e) = std::process::Command::new(&path).output() {
-                            self.error_message = format!("Failed to run FFMPEG: {}", e);
-                            self.error_window = true;
-                        } else {
-                            self.ffmpeg_path = path.display().to_string();
-                        }
-                    }
+                    ffmpeg_button_functionality(self);
                 }
                 ui.label(format!("FFMPEG Path: {}", self.ffmpeg_path));
             });
@@ -371,18 +373,22 @@ impl eframe::App for App {
     }
 }
 
+fn ffmpeg_button_functionality(app: &mut App) {
+    if let Some(path) = rfd::FileDialog::new().pick_file() {
+        if let Err(e) = std::process::Command::new(&path).output() {
+            app.error_message = format!("Failed to run FFMPEG: {}", e);
+            app.error_window = true;
+        } else {
+            app.ffmpeg_path = path.display().to_string();
+        }
+    }
+}
+
 fn initial_central_panel(app: &mut App, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
-        ui.label("This program requires FFMPEG to be installed.\nPlease provide the path to the FFMPEG executable.");
+        ui.label("This program requires FFMPEG.\nPlease provide the path to the FFMPEG executable.");
         if ui.button("Browse for ffmpeg.exe").clicked() {
-            if let Some(path) = rfd::FileDialog::new().pick_file() {
-                if let Err(e) = std::process::Command::new(&path).output() {
-                    app.error_message = format!("Failed to run FFMPEG: {}", e);
-                    app.error_window = true;
-                } else {
-                    app.ffmpeg_path = path.display().to_string();
-                }
-            }
+            ffmpeg_button_functionality(app);
         } else if std::env::consts::OS == "windows" && ui.button("Download FFMPEG").clicked() {
             app.ffmpeg_loading = true;
             let (tx, rx) = std::sync::mpsc::channel();
