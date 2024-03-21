@@ -253,7 +253,19 @@ impl eframe::App for App {
                 return;
             };
 
-            ui.label(format!("FFMPEG Path: {}", self.ffmpeg_path));
+            ui.horizontal(|ui| {
+                if ui.button("Change FFMPEG Path").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_file() {
+                        if let Err(e) = std::process::Command::new(&path).output() {
+                            self.error_message = format!("Failed to run FFMPEG: {}", e);
+                            self.error_window = true;
+                        } else {
+                            self.ffmpeg_path = path.display().to_string();
+                        }
+                    }
+                }
+                ui.label(format!("FFMPEG Path: {}", self.ffmpeg_path));
+            });
             ui.separator();
 
             ui.horizontal(|ui| {
