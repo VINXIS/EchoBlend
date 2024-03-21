@@ -16,9 +16,7 @@ pub fn run_ffmpeg(
     {
         Ok(cmd) => cmd,
         Err(e) => {
-            let err_msg = e.to_string();
-            let _ = tx.send(Err(err_msg.clone())); // Handle send error gracefully
-            return Err(err_msg);
+            return Err(e.to_string());
         }
     };
 
@@ -72,14 +70,10 @@ pub fn run_ffmpeg(
     match cmd.wait() {
         Ok(status) if status.success() => Ok(()),
         Ok(status) => {
-            let err_msg = format!("ffmpeg exited with error code: {}", status);
-            let _ = tx.send(Err(err_msg.clone())); // Handle send error gracefully
-            Err(err_msg)
+            Err(format!("ffmpeg exited with error code: {}", status))
         }
         Err(e) => {
-            let err_msg = e.to_string();
-            let _ = tx.send(Err(err_msg.clone())); // Handle send error gracefully
-            Err(err_msg)
+            Err(e.to_string())
         }
     }
 }
