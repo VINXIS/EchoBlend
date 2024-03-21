@@ -45,7 +45,7 @@ pub struct App {
     #[serde(skip)]
     running_finished: Option<std::sync::mpsc::Receiver<Result<bool, String>>>,
     #[serde(skip)]
-    console: std::cell::RefCell<Vec<ConsoleText>>,
+    console: Vec<ConsoleText>,
 }
 
 impl Default for App {
@@ -68,7 +68,7 @@ impl Default for App {
             ffmpeg_rx: None,
             running_rx: None,
             running_finished: None,
-            console: std::cell::RefCell::new(Vec::new()),
+            console: Vec::new(),
         }
     }
 }
@@ -102,7 +102,7 @@ impl App {
             ffmpeg_rx: None,
             running_rx: None,
             running_finished: None,
-            console: std::cell::RefCell::new(Vec::new()),
+            console: Vec::new(),
         }
     }
 
@@ -218,21 +218,20 @@ impl eframe::App for App {
                 true,
             );
 
-            let curr_console_length = self.console.borrow().len();
+            let mut new_line = false;
             handle_rx(
                 &mut self.running_rx,
                 |res| {
-                    self.console.borrow_mut().push(res);
+                    new_line = true;
+                    self.console.push(res);
                 },
                 |e| {
-                    self.console.borrow_mut().push(ConsoleText::Stderr(e.clone()));
                     self.error_message = e;
                     self.error_window = true;
                 },
                 &mut self.running,
                 false,
             );
-            let new_line = self.console.borrow().len() != curr_console_length;
 
             handle_rx(
                 &mut self.running_finished,
@@ -336,7 +335,7 @@ impl eframe::App for App {
                             .on_hover_text("Clear the console.")
                             .clicked()
                         {
-                            self.console.borrow_mut().clear();
+                            self.console.clear();
                         }
                         if self.running {
                             ui.add(egui::widgets::Spinner::new());
@@ -349,8 +348,7 @@ impl eframe::App for App {
                 ui.style_mut().visuals.window_fill = egui::Color32::from_rgb(0, 0, 0);
                 ui.label("Console");
                 ui.separator();
-                let console = self.console.borrow();
-                for line in console.iter() {
+                for line in self.console.iter() {
                     match line {
                         ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 255, 100))),
                         ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 255, 100))),
@@ -471,7 +469,7 @@ fn can_loop(app: &mut App) -> Result<(), String> {
 }
 
 fn open_file_dialog_and_create_loop(app: &mut App, file_name: &str, test_loop: bool) {
-    app.console.borrow_mut().clear();
+    app.console.clear();
     if let Some(path) = rfd::FileDialog::new()
         .add_filter("WAV File", &["wav"])
         .add_filter("MP3 File", &["mp3"])
