@@ -46,10 +46,12 @@ pub fn run_ffmpeg(
     let tx_stderr = tx.clone();
     std::thread::spawn(move || {
         let reader = std::io::BufReader::new(stderr);
+        let mut on_error = false;
         for line in reader.lines() {
             match line {
                 Ok(line) => {
-                    if line.to_lowercase().contains("error") {
+                    if line.to_lowercase().contains("error") || on_error {
+                        on_error = true;
                         let _ = tx_stderr.send(Ok(app::ConsoleText::Stderr(line)));
                     // Adjust as needed
                     } else {
