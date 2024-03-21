@@ -11,8 +11,7 @@ fn main() -> eframe::Result<()> {
             .with_inner_size([620.0, 520.0])
             .with_min_inner_size([430.0, 300.0])
             .with_icon(
-                eframe::icon_data::from_png_bytes(&include_bytes!("../icon.png")[..])
-                    .unwrap(),
+                eframe::icon_data::from_png_bytes(&include_bytes!("../icon.png")[..]).unwrap(),
             ),
         ..Default::default()
     };

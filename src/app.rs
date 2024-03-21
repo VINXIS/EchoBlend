@@ -108,7 +108,6 @@ impl App {
 
     fn handle_inputs(&mut self, ctx: &egui::Context) {
         ctx.input(|i| {
-    
             // Hovered/Dropped files
             if i.raw.hovered_files.is_empty() && i.raw.dropped_files.is_empty() {
                 self.file_load = false;
@@ -119,18 +118,23 @@ impl App {
                 // Check if file is wav or mp3
                 self.file_load = false;
                 let path = match target_file.clone().path {
-                    Some(p) => {
-                        match p.extension() {
-                            Some(ext) => ext.to_str().unwrap_or_default().to_string(),
-                            None => "".to_string()
-                        }
+                    Some(p) => match p.extension() {
+                        Some(ext) => ext.to_str().unwrap_or_default().to_string(),
+                        None => "".to_string(),
                     },
-                    None => "".to_string()
+                    None => "".to_string(),
                 };
-                if target_file.name.ends_with(".wav") || target_file.name.ends_with(".mp3") || path.ends_with("wav") || path.ends_with("mp3") {
+                if target_file.name.ends_with(".wav")
+                    || target_file.name.ends_with(".mp3")
+                    || path.ends_with("wav")
+                    || path.ends_with("mp3")
+                {
                     self.file = target_file.clone();
                 } else {
-                    self.error_message = format!("You can only use .wav or .mp3 files. Your file was: {}", target_file.clone().path.expect("No Path").display());
+                    self.error_message = format!(
+                        "You can only use .wav or .mp3 files. Your file was: {}",
+                        target_file.clone().path.expect("No Path").display()
+                    );
                     self.error_window = true;
                 }
             }
@@ -167,7 +171,7 @@ impl App {
 impl eframe::App for App {
     // Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        let temp = App::save_state_clone(&self);
+        let temp = App::save_state_clone(self);
         eframe::set_value(storage, eframe::APP_KEY, &temp);
     }
 
@@ -248,10 +252,10 @@ impl eframe::App for App {
                 initial_central_panel(self, ui);
                 return;
             };
-            
+
             ui.label(format!("FFMPEG Path: {}", self.ffmpeg_path));
             ui.separator();
-        
+
             ui.horizontal(|ui| {
                 ui.label("Drag and drop a file to get started.\nYou should only use .wav or .mp3 files.\nThe file name will be displayed below.");
                 if self.file_load {
@@ -274,7 +278,7 @@ impl eframe::App for App {
                         &mut self.start_unit,
                         "The time in the song where the loop will start."
                     );
-            
+
                     add_time_setting(
                         ui,
                         "End Time: ",
@@ -282,7 +286,7 @@ impl eframe::App for App {
                         &mut self.end_unit,
                         "The time in the song where the loop will end."
                     );
-            
+
                     add_time_setting(
                         ui,
                         "Crossfade Duration: ",
@@ -304,22 +308,21 @@ impl eframe::App for App {
                         if ui.add_enabled(can_run, egui::Button::new("Create Loop"))
                             .on_disabled_hover_text(&reason)
                             .on_hover_text("Create a loop from the provided file.")
-                            .clicked() 
+                            .clicked()
                         {
                             open_file_dialog_and_create_loop(self, "output", false);
                         }
-        
                         if ui.add_enabled(can_run, egui::Button::new("Test Loop"))
                             .on_disabled_hover_text(&reason)
                             .on_hover_text("Test the loop with the provided file.")
-                            .clicked() 
+                            .clicked()
                         {
                             open_file_dialog_and_create_loop(self, "test", true);
                         }
                         if ui.add(egui::Button::new("Clear Console"))
                             .on_disabled_hover_text(&reason)
                             .on_hover_text("Clear the console.")
-                            .clicked() 
+                            .clicked()
                         {
                             self.console.borrow_mut().clear();
                         }
@@ -390,7 +393,8 @@ fn add_time_setting<T: egui::emath::Numeric>(
     tooltip: &str,
 ) {
     ui.label(label).on_hover_text(tooltip);
-    ui.add(egui::DragValue::new(value).speed(5)).on_hover_text(tooltip);
+    ui.add(egui::DragValue::new(value).speed(5))
+        .on_hover_text(tooltip);
     ui.horizontal(|ui| {
         ui.selectable_value(unit, Unit::Milliseconds, "ms");
         ui.selectable_value(unit, Unit::Seconds, "s");
@@ -405,7 +409,7 @@ fn handle_rx<R, F, G>(
     loading_flag: &mut bool,
     auto_kill: bool,
 ) where
-    F: FnOnce(R), // Success handler
+    F: FnOnce(R),      // Success handler
     G: FnOnce(String), // Error handler
 {
     if let Some(rx) = rx_option {
@@ -437,10 +441,16 @@ fn can_loop(app: &mut App) -> Result<(), String> {
     let end = app.get_time_var_ms(TimeVariable::End);
     let crossfade = app.get_time_var_ms(TimeVariable::Crossfade);
     if start >= end {
-        return Err(format!("The start time must be less than the end time. Start: {}, End: {}", start, end));
+        return Err(format!(
+            "The start time must be less than the end time. Start: {}, End: {}",
+            start, end
+        ));
     }
     if crossfade >= start {
-        return Err(format!("The crossfade duration must be less than the start time. Crossfade: {}, Start: {}", crossfade, start));
+        return Err(format!(
+            "The crossfade duration must be less than the start time. Crossfade: {}, Start: {}",
+            crossfade, start
+        ));
     }
     if crossfade >= end - start {
         return Err(format!("The crossfade duration must be less than the loop duration. Crossfade: {}, Loop Duration: {}", crossfade, end - start));
@@ -455,7 +465,7 @@ fn open_file_dialog_and_create_loop(app: &mut App, file_name: &str, test_loop: b
         .add_filter("MP3 File", &["mp3"])
         .set_file_name(file_name)
         .set_directory(std::env::current_dir().unwrap())
-        .save_file() 
+        .save_file()
     {
         app.running = true;
         let (tx, rx) = std::sync::mpsc::channel();

@@ -1,6 +1,6 @@
 [package]
 name = "echo_blend"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["Omar Kamal <oykxf2@gmail.com>"]
 edition = "2021"
 rust-version = "1.76"
@@ -31,11 +31,11 @@ wasm-bindgen-futures = "0.4"
 
 
 [profile.release]
-opt-level = 2 # fast and small wasm
+opt-level = 3
+strip = true
 
-# Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
-opt-level = 2
+opt-level = 3
 
 
 [patch.crates-io]
