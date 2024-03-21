@@ -350,12 +350,22 @@ impl eframe::App for App {
                 ui.style_mut().visuals.window_fill = egui::Color32::from_rgb(0, 0, 0);
                 ui.label("Console");
                 ui.separator();
-                for line in self.console.iter() {
-                    match line {
-                        ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 255, 100))),
-                        ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 255, 100))),
-                        ConsoleText::Stderr(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 100, 100))),
-                    };
+                if ctx.style().visuals.dark_mode {
+                    for line in self.console.iter() {
+                        match line {
+                            ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 255, 100))),
+                            ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 255, 100))),
+                            ConsoleText::Stderr(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 100, 100))),
+                        };
+                    }
+                } else {
+                    for line in self.console.iter() {
+                        match line {
+                            ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 100, 0))),
+                            ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(0, 100, 0))),
+                            ConsoleText::Stderr(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 0, 0))),
+                        };
+                    }
                 }
                 if new_line {
                     ui.scroll_to_cursor(Some(egui::Align::BOTTOM));
