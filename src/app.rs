@@ -1,12 +1,13 @@
 use crate::{ffmpeg, looper};
 
-#[derive(serde::Deserialize, serde::Serialize, PartialEq, Clone, Copy)]
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Clone, Copy, Default)]
 pub enum Unit {
+    #[default]
     Milliseconds,
     Seconds,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
+#[derive(Debug)]
 pub enum ConsoleText {
     Program(String),
     Stdout(String),
@@ -19,60 +20,68 @@ pub enum TimeVariable {
     Crossfade,
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
-pub struct App {
+#[derive(serde::Deserialize, serde::Serialize, Default)]
+pub struct AppUnits {
+    pub start_unit: Unit,
+    pub end_unit: Unit,
+    pub crossfade_unit: Unit,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Default)]
+pub struct AppToolPaths {
     pub ffmpeg_path: String,
-    pub file: egui::DroppedFile,
+}
+
+#[derive(Default)]
+pub struct AppTimes {
     pub start_time: u32,
     pub end_time: u32,
     pub crossfade_duration: u16,
     pub loop_count: u8,
-    pub start_unit: Unit,
-    pub end_unit: Unit,
-    pub crossfade_unit: Unit,
-
-    ffmpeg_path_check: bool,
-    ffmpeg_loading: bool,
-    file_load: bool,
-    error_window: bool,
-    error_message: String,
-    running: bool,
-
-    #[serde(skip)]
-    ffmpeg_rx: Option<std::sync::mpsc::Receiver<Result<std::path::PathBuf, String>>>,
-    #[serde(skip)]
-    running_rx: Option<std::sync::mpsc::Receiver<Result<ConsoleText, String>>>,
-    #[serde(skip)]
-    running_finished: Option<std::sync::mpsc::Receiver<Result<bool, String>>>,
-    #[serde(skip)]
-    console: Vec<ConsoleText>,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            ffmpeg_path: String::new(),
-            ffmpeg_path_check: false,
-            ffmpeg_loading: false,
-            file: egui::DroppedFile::default(),
-            file_load: false,
-            error_window: false,
-            error_message: String::new(),
-            start_time: 0,
-            end_time: 0,
-            crossfade_duration: 0,
-            loop_count: 1,
-            start_unit: Unit::Milliseconds,
-            end_unit: Unit::Milliseconds,
-            crossfade_unit: Unit::Milliseconds,
-            running: false,
-            ffmpeg_rx: None,
-            running_rx: None,
-            running_finished: None,
-            console: Vec::new(),
-        }
-    }
+#[derive(Default)]
+struct AppToolState {
+    ffmpeg_path_check: bool,
+    ffmpeg_loading: bool,
+}
+
+#[derive(Default)]
+struct AppError {
+    message: String,
+    window: bool,
+}
+
+#[derive(Default)]
+struct AppChannels {
+    ffmpeg_rx: Option<std::sync::mpsc::Receiver<Result<std::path::PathBuf, String>>>,
+    running_rx: Option<std::sync::mpsc::Receiver<Result<ConsoleText, String>>>,
+    running_finished: Option<std::sync::mpsc::Receiver<Result<bool, String>>>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Default)]
+pub struct App {
+    pub tools: AppToolPaths,
+    pub units: AppUnits,
+
+    #[serde(skip)]
+    pub file: egui::DroppedFile,
+    #[serde(skip)]
+    pub times: AppTimes,
+
+    #[serde(skip)]
+    error: AppError,
+    #[serde(skip)]
+    tool_state: AppToolState,
+    #[serde(skip)]
+    channels: AppChannels,
+
+    #[serde(skip)]
+    file_load: bool,
+    #[serde(skip)]
+    running: bool,
+    #[serde(skip)]
+    console: Vec<ConsoleText>,
 }
 
 impl App {
@@ -83,30 +92,6 @@ impl App {
         }
 
         Default::default()
-    }
-
-    pub fn save_state_clone(&self) -> Self {
-        Self {
-            ffmpeg_path: self.ffmpeg_path.clone(),
-            ffmpeg_path_check: false,
-            ffmpeg_loading: false,
-            file: egui::DroppedFile::default(),
-            file_load: false,
-            error_window: false,
-            error_message: String::new(),
-            start_time: 0,
-            end_time: 0,
-            crossfade_duration: 0,
-            loop_count: self.loop_count,
-            start_unit: self.start_unit,
-            end_unit: self.end_unit,
-            crossfade_unit: self.crossfade_unit,
-            running: false,
-            ffmpeg_rx: None,
-            running_rx: None,
-            running_finished: None,
-            console: Vec::new(),
-        }
     }
 
     fn handle_inputs(&mut self, ctx: &egui::Context) {
@@ -134,11 +119,11 @@ impl App {
                 {
                     self.file = target_file.clone();
                 } else {
-                    self.error_message = format!(
+                    self.error.message = format!(
                         "You can only use .wav or .mp3 files. Your file was: {}",
                         target_file.clone().path.expect("No Path").display()
                     );
-                    self.error_window = true;
+                    self.error.window = true;
                 }
             }
         });
@@ -146,20 +131,20 @@ impl App {
 
     pub fn get_time_var_ms(&self, var: TimeVariable) -> u32 {
         let ms = match var {
-            TimeVariable::Start => self.start_time,
-            TimeVariable::End => self.end_time,
-            TimeVariable::Crossfade => self.crossfade_duration as u32,
+            TimeVariable::Start => self.times.start_time,
+            TimeVariable::End => self.times.end_time,
+            TimeVariable::Crossfade => self.times.crossfade_duration as u32,
         };
         ms * match var {
-            TimeVariable::Start => match self.start_unit {
+            TimeVariable::Start => match self.units.start_unit {
                 Unit::Milliseconds => 1,
                 Unit::Seconds => 1000,
             },
-            TimeVariable::End => match self.end_unit {
+            TimeVariable::End => match self.units.end_unit {
                 Unit::Milliseconds => 1,
                 Unit::Seconds => 1000,
             },
-            TimeVariable::Crossfade => match self.crossfade_unit {
+            TimeVariable::Crossfade => match self.units.crossfade_unit {
                 Unit::Milliseconds => 1,
                 Unit::Seconds => 1000,
             },
@@ -174,8 +159,7 @@ impl App {
 impl eframe::App for App {
     // Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        let temp = App::save_state_clone(self);
-        eframe::set_value(storage, eframe::APP_KEY, &temp);
+        eframe::set_value(storage, eframe::APP_KEY, &self);
     }
 
     // Called each time the UI needs repainting, which may be many times per second.
@@ -187,14 +171,14 @@ impl eframe::App for App {
         });
 
         // Case checks
-        if self.error_window {
+        if self.error.window {
             egui::Window::new("Error")
-                .open(&mut self.error_window)
+                .open(&mut self.error.window)
                 .resizable(false)
                 .collapsible(false)
                 .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    ui.label(self.error_message.clone());
+                    ui.label(self.error.message.clone());
                 });
         }
 
@@ -211,36 +195,36 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
             handle_rx(
-                &mut self.ffmpeg_rx,
-                |path| self.ffmpeg_path = path.display().to_string(),
+                &mut self.channels.ffmpeg_rx,
+                |path| self.tools.ffmpeg_path = path.display().to_string(),
                 |e| {
-                    self.error_message = format!("Failed to download FFMPEG: {}", e);
-                    self.error_window = true;
+                    self.error.message = format!("Failed to download FFMPEG: {}", e);
+                    self.error.window = true;
                 },
-                &mut self.ffmpeg_loading,
+                &mut self.tool_state.ffmpeg_loading,
                 true,
             );
 
             let mut new_line = false;
             handle_rx(
-                &mut self.running_rx,
+                &mut self.channels.running_rx,
                 |res| {
                     new_line = true;
                     self.console.push(res);
                 },
                 |e| {
-                    self.error_message = e;
-                    self.error_window = true;
+                    self.error.message = e;
+                    self.error.window = true;
                 },
                 &mut self.running,
                 false,
             );
 
             handle_rx(
-                &mut self.running_finished,
+                &mut self.channels.running_finished,
                 |res| {
                     if res {
-                        self.running_rx = None;
+                        self.channels.running_rx = None;
                         self.running = false;
                     }
                 },
@@ -250,11 +234,11 @@ impl eframe::App for App {
             );
 
             // Initial state if no ffmpeg path is provided
-            if self.ffmpeg_path.is_empty() {
-                if !self.ffmpeg_path_check {
-                    self.ffmpeg_path_check = true;
+            if self.tools.ffmpeg_path.is_empty() {
+                if !self.tool_state.ffmpeg_path_check {
+                    self.tool_state.ffmpeg_path_check = true;
                     if std::process::Command::new("ffmpeg").output().is_ok() {
-                        self.ffmpeg_path = "ffmpeg".to_string();
+                        self.tools.ffmpeg_path = "ffmpeg".to_string();
                     }
                 }
                 initial_central_panel(self, ui);
@@ -265,7 +249,7 @@ impl eframe::App for App {
                 if ui.button("Change FFMPEG Path").clicked() {
                     ffmpeg_button_functionality(self);
                 }
-                ui.label(format!("FFMPEG Path: {}", self.ffmpeg_path));
+                ui.label(format!("FFMPEG Path: {}", self.tools.ffmpeg_path));
             });
             ui.separator();
 
@@ -287,30 +271,30 @@ impl eframe::App for App {
                     add_time_setting(
                         ui,
                         "Start Time: ",
-                        &mut self.start_time,
-                        &mut self.start_unit,
+                        &mut self.times.start_time,
+                        &mut self.units.start_unit,
                         "The time in the song where the loop will start."
                     );
 
                     add_time_setting(
                         ui,
                         "End Time: ",
-                        &mut self.end_time,
-                        &mut self.end_unit,
+                        &mut self.times.end_time,
+                        &mut self.units.end_unit,
                         "The time in the song where the loop will end."
                     );
 
                     add_time_setting(
                         ui,
                         "Crossfade Duration: ",
-                        &mut self.crossfade_duration,
-                        &mut self.crossfade_unit,
+                        &mut self.times.crossfade_duration,
+                        &mut self.units.crossfade_unit,
                         "The time it takes for the loop to fade in and out."
                     );
 
                     ui.label("Loop Count").on_hover_text("The amount of times the section should loop");
-                    ui.add(egui::DragValue::new(&mut self.loop_count).speed(1)).on_hover_text("The amount of times the section should loop");
-                    ui.label(format!("Total approximate loop time: {} seconds", f32::max(0.0, (self.get_time_var_s(TimeVariable::End) - self.get_time_var_s(TimeVariable::Start)) * f32::from(self.loop_count))));
+                    ui.add(egui::DragValue::new(&mut self.times.loop_count).speed(1)).on_hover_text("The amount of times the section should loop");
+                    ui.label(format!("Total approximate loop time: {} seconds", f32::max(0.0, (self.get_time_var_s(TimeVariable::End) - self.get_time_var_s(TimeVariable::Start)) * f32::from(self.times.loop_count))));
                     ui.end_row();
 
                     ui.horizontal(|ui| {
@@ -386,10 +370,10 @@ impl eframe::App for App {
 fn ffmpeg_button_functionality(app: &mut App) {
     if let Some(path) = rfd::FileDialog::new().pick_file() {
         if let Err(e) = std::process::Command::new(&path).output() {
-            app.error_message = format!("Failed to run FFMPEG: {}", e);
-            app.error_window = true;
+            app.error.message = format!("Failed to run FFMPEG: {}", e);
+            app.error.window = true;
         } else {
-            app.ffmpeg_path = path.display().to_string();
+            app.tools.ffmpeg_path = path.display().to_string();
         }
     }
 }
@@ -402,12 +386,12 @@ fn initial_central_panel(app: &mut App, ui: &mut egui::Ui) {
         if ui.button("Browse for ffmpeg.exe").clicked() {
             ffmpeg_button_functionality(app);
         } else if std::env::consts::OS == "windows" && ui.button("Download FFMPEG").clicked() {
-            app.ffmpeg_loading = true;
+            app.tool_state.ffmpeg_loading = true;
             let (tx, rx) = std::sync::mpsc::channel();
             ffmpeg::get_ffmpeg(tx);
-            app.ffmpeg_rx = Some(rx);
+            app.channels.ffmpeg_rx = Some(rx);
         }
-        if app.ffmpeg_loading {
+        if app.tool_state.ffmpeg_loading {
             ui.add(egui::widgets::Spinner::new());
         }
     });
@@ -458,7 +442,7 @@ fn can_loop(app: &mut App) -> Result<(), String> {
     if app.running {
         return Err("A loop is already running.".to_string());
     }
-    if app.ffmpeg_path.is_empty() {
+    if app.tools.ffmpeg_path.is_empty() {
         return Err("Please provide the path to the FFMPEG executable.".to_string());
     }
     if app.file.path.is_none() {
@@ -498,14 +482,14 @@ fn open_file_dialog_and_create_loop(app: &mut App, file_name: &str, test_loop: b
         app.running = true;
         let (tx, rx) = std::sync::mpsc::channel();
         let (tx_finish, rx_finish) = std::sync::mpsc::channel();
-        app.running_rx = Some(rx);
-        app.running_finished = Some(rx_finish);
+        app.channels.running_rx = Some(rx);
+        app.channels.running_finished = Some(rx_finish);
         looper::create_loop(
             app.get_time_var_s(TimeVariable::Start),
             app.get_time_var_s(TimeVariable::End),
             app.get_time_var_s(TimeVariable::Crossfade),
-            app.loop_count,
-            app.ffmpeg_path.clone(),
+            app.times.loop_count,
+            app.tools.ffmpeg_path.clone(),
             app.file.path.clone().unwrap().display().to_string(),
             path.display().to_string(),
             tx,
