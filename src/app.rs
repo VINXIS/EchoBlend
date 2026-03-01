@@ -10,6 +10,7 @@ pub enum Unit {
 #[derive(Debug)]
 pub enum ConsoleText {
     Program(String),
+    Success(String),
     Stdout(String),
     Stderr(String),
 }
@@ -80,6 +81,8 @@ pub struct App {
     file_load: bool,
     #[serde(skip)]
     running: bool,
+    #[serde(skip)]
+    success: bool,
     #[serde(skip)]
     console: Vec<ConsoleText>,
 }
@@ -226,6 +229,7 @@ impl eframe::App for App {
                     if res {
                         self.channels.running_rx = None;
                         self.running = false;
+                        self.success = true;
                     }
                 },
                 |_| {},
@@ -316,45 +320,52 @@ impl eframe::App for App {
                         {
                             open_file_dialog_and_create_loop(self, "test", true);
                         }
-                        if ui.add(egui::Button::new("Clear Console"))
-                            .on_disabled_hover_text(&reason)
-                            .on_hover_text("Clear the console.")
-                            .clicked()
-                        {
-                            self.console.clear();
-                        }
                         if self.running {
                             ui.add(egui::widgets::Spinner::new());
+                        }
+                        if self.success {
+                            ui.monospace(egui::RichText::new("Done!").color(egui::Color32::from_rgb(100, 255, 100)));
                         }
                     });
                 });
             ui.separator();
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.style_mut().visuals.window_fill = egui::Color32::from_rgb(0, 0, 0);
-                ui.label("Console");
-                ui.separator();
-                if ctx.style().visuals.dark_mode {
-                    for line in self.console.iter() {
-                        match line {
-                            ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 255, 100))),
-                            ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 255, 100))),
-                            ConsoleText::Stderr(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 100, 100))),
-                        };
-                    }
-                } else {
-                    for line in self.console.iter() {
-                        match line {
-                            ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 100, 0))),
-                            ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(0, 100, 0))),
-                            ConsoleText::Stderr(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 0, 0))),
-                        };
-                    }
-                }
-                if new_line {
-                    ui.scroll_to_cursor(Some(egui::Align::BOTTOM));
-                }
-            });
+            egui::CollapsingHeader::new("Console")
+                .default_open(true)
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.style_mut().visuals.window_fill = egui::Color32::from_rgb(0, 0, 0);
+                        if ui.add(egui::Button::new("Clear Console"))
+                            .on_hover_text("Clear the console.")
+                            .clicked()
+                        {
+                            self.console.clear();
+                        }
+                        ui.separator();
+                        if ctx.style().visuals.dark_mode {
+                            for line in self.console.iter() {
+                                match line {
+                                    ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 255, 255))),
+                                    ConsoleText::Success(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 255, 100))),
+                                    ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 255, 100))),
+                                    ConsoleText::Stderr(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(255, 100, 100))),
+                                };
+                            }
+                        } else {
+                            for line in self.console.iter() {
+                                match line {
+                                    ConsoleText::Program(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(0,0,0))),
+                                    ConsoleText::Success(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(0, 100, 0))),
+                                    ConsoleText::Stdout(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 100, 0))),
+                                    ConsoleText::Stderr(text) => ui.monospace(egui::RichText::new(text).color(egui::Color32::from_rgb(100, 0, 0))),
+                                };
+                            }
+                        }
+                        if new_line {
+                            ui.scroll_to_cursor(Some(egui::Align::BOTTOM));
+                        }
+                    });
+                });
         });
 
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
@@ -472,6 +483,7 @@ fn can_loop(app: &mut App) -> Result<(), String> {
 
 fn open_file_dialog_and_create_loop(app: &mut App, file_name: &str, test_loop: bool) {
     app.console.clear();
+    app.success = false;
     if let Some(path) = rfd::FileDialog::new()
         .add_filter("WAV File", &["wav"])
         .add_filter("MP3 File", &["mp3"])

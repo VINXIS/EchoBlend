@@ -284,7 +284,7 @@ pub fn create_loop(
             std::fs::remove_file(crossfade_file_name).unwrap();
         }
 
-        tx.send(Ok(app::ConsoleText::Program("Done!".to_string())))
+        tx.send(Ok(app::ConsoleText::Success("Done!".to_string())))
             .unwrap();
         tx_finished.send(Ok(true)).unwrap();
     });
