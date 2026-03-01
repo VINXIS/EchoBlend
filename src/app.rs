@@ -22,23 +22,23 @@ pub enum TimeVariable {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
-pub struct AppUnits {
-    pub start_unit: Unit,
-    pub end_unit: Unit,
-    pub crossfade_unit: Unit,
+struct AppUnits {
+    start_unit: Unit,
+    end_unit: Unit,
+    crossfade_unit: Unit,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
-pub struct AppToolPaths {
-    pub ffmpeg_path: String,
+struct AppToolPaths {
+    ffmpeg_path: String,
 }
 
 #[derive(Default)]
-pub struct AppTimes {
-    pub start_time: u32,
-    pub end_time: u32,
-    pub crossfade_duration: u16,
-    pub loop_count: u8,
+struct AppTimes {
+    start_time: u32,
+    end_time: u32,
+    crossfade_duration: u16,
+    loop_count: u8,
 }
 
 #[derive(Default)]
@@ -62,13 +62,13 @@ struct AppChannels {
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 pub struct App {
-    pub tools: AppToolPaths,
-    pub units: AppUnits,
+    tools: AppToolPaths,
+    units: AppUnits,
 
     #[serde(skip)]
-    pub file: egui::DroppedFile,
+    file: egui::DroppedFile,
     #[serde(skip)]
-    pub times: AppTimes,
+    times: AppTimes,
 
     #[serde(skip)]
     error: AppError,
