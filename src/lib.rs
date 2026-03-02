@@ -3,4 +3,5 @@
 mod app;
 mod ffmpeg;
 mod looper;
+mod ui;
 pub use app::App;
