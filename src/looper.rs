@@ -3,6 +3,17 @@ use std::vec;
 
 use crate::{app, ffmpeg};
 
+macro_rules! ffmpeg_command {
+    ($tx:expr, $msg:expr, $ffmpeg_path:expr, $args:expr, $thread_finished:expr) => {
+        $tx.send(Ok(app::ConsoleText::Program($msg.to_string())))
+            .unwrap();
+        if execute_ffmpeg_command($ffmpeg_path, $args, $tx).is_err() {
+            $thread_finished.send(Ok(true)).unwrap();
+            return;
+        }
+    };
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn create_loop(
     start_s: f32,
@@ -27,6 +38,16 @@ pub fn create_loop(
         let crossfade_file_name = format!("crossfade_echo_blend_{}.wav", std::process::id());
         let concat_list_file_name = format!("concat_list_echo_blend_{}.txt", std::process::id());
 
+        let temp_files = vec![
+            intro_file_name.clone(),
+            outro_file_name.clone(),
+            loop_file_name.clone(),
+            crossfade_1_file_name.clone(),
+            crossfade_2_file_name.clone(),
+            crossfade_file_name.clone(),
+            concat_list_file_name.clone(),
+        ];
+
         if crossfade_s == 0.0 {
             tx.send(Ok(app::ConsoleText::Program(
                 "Crossfade duration is 0, skipping crossfade...".to_string(),
@@ -41,11 +62,9 @@ pub fn create_loop(
             .unwrap();
         }
 
-        tx.send(Ok(app::ConsoleText::Program(
-            "Rendering intro...".to_string(),
-        )))
-        .unwrap();
-        if execute_ffmpeg_command(
+        ffmpeg_command!(
+            &tx,
+            "Rendering intro...",
             &ffmpeg_path,
             &[
                 "-y",
@@ -55,20 +74,13 @@ pub fn create_loop(
                 &(end_s - crossfade_s).to_string(),
                 &intro_file_name,
             ],
-            &tx,
-        )
-        .is_err()
-        {
-            thread_finished.send(Ok(true)).unwrap();
-            return;
-        }
+            thread_finished
+        );
 
         if crossfade_s > 0.0 {
-            tx.send(Ok(app::ConsoleText::Program(
-                "Rendering crossfade sample 1...".to_string(),
-            )))
-            .unwrap();
-            if execute_ffmpeg_command(
+            ffmpeg_command!(
+                &tx,
+                "Rendering crossfade sample 1...",
                 &ffmpeg_path,
                 &[
                     "-y",
@@ -82,18 +94,11 @@ pub fn create_loop(
                     &format!("afade=t=out:st={}:d={}", end_s - crossfade_s, crossfade_s),
                     &crossfade_1_file_name,
                 ],
+                thread_finished
+            );
+            ffmpeg_command!(
                 &tx,
-            )
-            .is_err()
-            {
-                thread_finished.send(Ok(true)).unwrap();
-                return;
-            }
-            tx.send(Ok(app::ConsoleText::Program(
-                "Rendering crossfade sample 2...".to_string(),
-            )))
-            .unwrap();
-            if execute_ffmpeg_command(
+                "Rendering crossfade sample 2...",
                 &ffmpeg_path,
                 &[
                     "-y",
@@ -107,18 +112,11 @@ pub fn create_loop(
                     &format!("afade=t=in:st={}:d={}", start_s - crossfade_s, crossfade_s),
                     &crossfade_2_file_name,
                 ],
+                thread_finished
+            );
+            ffmpeg_command!(
                 &tx,
-            )
-            .is_err()
-            {
-                thread_finished.send(Ok(true)).unwrap();
-                return;
-            }
-            tx.send(Ok(app::ConsoleText::Program(
-                "Rendering crossfade...".to_string(),
-            )))
-            .unwrap();
-            if execute_ffmpeg_command(
+                "Rendering crossfade...",
                 &ffmpeg_path,
                 &[
                     "-y",
@@ -130,28 +128,14 @@ pub fn create_loop(
                     "amix=inputs=2:duration=first:dropout_transition=0:normalize=0",
                     &crossfade_file_name,
                 ],
-                &tx,
-            )
-            .is_err()
-            {
-                thread_finished.send(Ok(true)).unwrap();
-                return;
-            }
-
-            tx.send(Ok(app::ConsoleText::Program(
-                "Deleting crossfade samples...".to_string(),
-            )))
-            .unwrap();
-            std::fs::remove_file(crossfade_1_file_name).unwrap();
-            std::fs::remove_file(crossfade_2_file_name).unwrap();
+                thread_finished
+            );
         }
 
         if !is_test {
-            tx.send(Ok(app::ConsoleText::Program(
-                "Rendering loop segment...".to_string(),
-            )))
-            .unwrap();
-            if execute_ffmpeg_command(
+            ffmpeg_command!(
+                &tx,
+                "Rendering loop segment...",
                 &ffmpeg_path,
                 &[
                     "-y",
@@ -163,20 +147,13 @@ pub fn create_loop(
                     (end_s - start_s - crossfade_s).to_string().as_str(),
                     &loop_file_name,
                 ],
-                &tx,
-            )
-            .is_err()
-            {
-                thread_finished.send(Ok(true)).unwrap();
-                return;
-            }
+                thread_finished
+            );
         }
 
-        tx.send(Ok(app::ConsoleText::Program(
-            "Rendering outro...".to_string(),
-        )))
-        .unwrap();
-        if execute_ffmpeg_command(
+        ffmpeg_command!(
+            &tx,
+            "Rendering outro...",
             &ffmpeg_path,
             &[
                 "-y",
@@ -186,102 +163,34 @@ pub fn create_loop(
                 &start_s.to_string(),
                 &outro_file_name,
             ],
+            thread_finished
+        );
+
+        let cmd = final_cmd_builder(
+            &intro_file_name,
+            &loop_file_name,
+            loop_count,
+            crossfade_s,
+            &crossfade_file_name,
+            &outro_file_name,
+            &concat_list_file_name,
+            &output_path,
+            is_test,
+        );
+        ffmpeg_command!(
             &tx,
-        )
-        .is_err()
-        {
-            thread_finished.send(Ok(true)).unwrap();
-            return;
-        }
-
-        let mut cmd = vec!["-y"];
-        if is_test {
-            if crossfade_s > 0.0 {
-                cmd.append(&mut vec![
-                    "-i",
-                    &intro_file_name,
-                    "-i",
-                    &crossfade_file_name,
-                    "-i",
-                    &outro_file_name,
-                    "-filter_complex",
-                    "concat=n=3:v=0:a=1",
-                    &output_path,
-                ]);
-            } else {
-                cmd.append(&mut vec![
-                    "-i",
-                    &intro_file_name,
-                    "-i",
-                    &outro_file_name,
-                    "-filter_complex",
-                    "concat=n=2:v=0:a=1",
-                    &output_path,
-                ]);
-            }
-        } else {
-            // Create an ffmpeg concat list txt file
-            let mut concat_list = std::fs::File::create(&concat_list_file_name).unwrap();
-            concat_list
-                .write_all(format!("file '{}'\n", &intro_file_name).as_bytes())
-                .unwrap();
-            for _ in 0..loop_count {
-                if crossfade_s > 0.0 {
-                    concat_list
-                        .write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes())
-                        .unwrap();
-                }
-                concat_list
-                    .write_all(format!("file '{}'\n", &loop_file_name).as_bytes())
-                    .unwrap();
-            }
-            if crossfade_s > 0.0 {
-                concat_list
-                    .write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes())
-                    .unwrap();
-            }
-            concat_list
-                .write_all(format!("file '{}'\n", &outro_file_name).as_bytes())
-                .unwrap();
-
-            cmd.append(&mut vec![
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                &concat_list_file_name,
-            ]);
-            if output_path.ends_with(".mp3") {
-                cmd.push("-q:a");
-                cmd.push("2");
-            } else {
-                cmd.push("-c");
-                cmd.push("copy");
-            }
-            cmd.push(&output_path);
-        }
-        tx.send(Ok(app::ConsoleText::Program(
-            "Merging segments...".to_string(),
-        )))
-        .unwrap();
-        if execute_ffmpeg_command(&ffmpeg_path, &cmd, &tx).is_err() {
-            thread_finished.send(Ok(true)).unwrap();
-            return;
-        }
+            "Merging segments...",
+            &ffmpeg_path,
+            &cmd,
+            thread_finished
+        );
 
         tx.send(Ok(app::ConsoleText::Program(
-            "Deleting segments...".to_string(),
+            "Deleting files...".to_string(),
         )))
         .unwrap();
-        std::fs::remove_file(concat_list_file_name).unwrap_or_default();
-        std::fs::remove_file(intro_file_name).unwrap();
-        std::fs::remove_file(outro_file_name).unwrap();
-        if !is_test {
-            std::fs::remove_file(loop_file_name).unwrap();
-        }
-        if crossfade_s > 0.0 {
-            std::fs::remove_file(crossfade_file_name).unwrap();
+        for f in temp_files {
+            std::fs::remove_file(f).unwrap_or_default();
         }
 
         tx.send(Ok(app::ConsoleText::Success("Done!".to_string())))
@@ -302,4 +211,85 @@ fn execute_ffmpeg_command(
             Err(())
         }
     }
+}
+
+fn final_cmd_builder<'a>(
+    intro_file_name: &'a str,
+    loop_file_name: &'a str,
+    loop_count: u8,
+    crossfade_s: f32,
+    crossfade_file_name: &'a str,
+    outro_file_name: &'a str,
+    concat_list_file_name: &'a str,
+    output_path: &'a str,
+    is_test: bool,
+) -> Vec<&'a str> {
+    let mut cmd = vec!["-y"];
+    if is_test {
+        if crossfade_s > 0.0 {
+            cmd.append(&mut vec![
+                "-i",
+                &intro_file_name,
+                "-i",
+                &crossfade_file_name,
+                "-i",
+                &outro_file_name,
+                "-filter_complex",
+                "concat=n=3:v=0:a=1",
+                &output_path,
+            ]);
+        } else {
+            cmd.append(&mut vec![
+                "-i",
+                &intro_file_name,
+                "-i",
+                &outro_file_name,
+                "-filter_complex",
+                "concat=n=2:v=0:a=1",
+                &output_path,
+            ]);
+        }
+    } else {
+        // Create an ffmpeg concat list txt file
+        let mut concat_list = std::fs::File::create(&concat_list_file_name).unwrap();
+        concat_list
+            .write_all(format!("file '{}'\n", &intro_file_name).as_bytes())
+            .unwrap();
+        for _ in 0..loop_count {
+            if crossfade_s > 0.0 {
+                concat_list
+                    .write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes())
+                    .unwrap();
+            }
+            concat_list
+                .write_all(format!("file '{}'\n", &loop_file_name).as_bytes())
+                .unwrap();
+        }
+        if crossfade_s > 0.0 {
+            concat_list
+                .write_all(format!("file '{}'\n", &crossfade_file_name).as_bytes())
+                .unwrap();
+        }
+        concat_list
+            .write_all(format!("file '{}'\n", &outro_file_name).as_bytes())
+            .unwrap();
+
+        cmd.append(&mut vec![
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            &concat_list_file_name,
+        ]);
+        if output_path.ends_with(".mp3") {
+            cmd.push("-q:a");
+            cmd.push("2");
+        } else {
+            cmd.push("-c");
+            cmd.push("copy");
+        }
+        cmd.push(&output_path);
+    }
+    return cmd;
 }
