@@ -30,7 +30,7 @@ pub fn create_console_view(app: &mut App, ctx: &Context, ui: &mut Ui, new_line: 
 fn line_to_text(ui: &mut Ui, is_dark_mode: bool, line: &ConsoleText) {
     let mode_to_colour = |dark: (u8, u8, u8), light: (u8, u8, u8)| {
         let (r, g, b) = if is_dark_mode { dark } else { light };
-        return egui::Color32::from_rgb(r, g, b);
+        egui::Color32::from_rgb(r, g, b)
     };
 
     let (text, colour) = match line {

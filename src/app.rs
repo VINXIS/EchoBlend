@@ -259,7 +259,7 @@ impl App {
     }
 
     pub fn get_loop_count(&mut self) -> &mut u8 {
-        return &mut self.times.loop_count;
+        &mut self.times.loop_count
     }
 
     pub fn clear_console(&mut self) {
@@ -267,7 +267,7 @@ impl App {
     }
 
     pub fn iter_console(&self) -> Iter<'_, ConsoleText> {
-        return self.console.iter();
+        self.console.iter()
     }
 
     pub fn set_ffmpeg_channel(&mut self, rx: Receiver<Result<PathBuf, String>>) {
@@ -279,19 +279,19 @@ impl App {
     }
 
     pub fn is_ffmpeg_loading(&self) -> bool {
-        return self.tool_state.ffmpeg_loading;
+        self.tool_state.ffmpeg_loading
     }
 
     pub fn get_ffmpeg_path(&self) -> String {
-        return self.tools.ffmpeg_path.clone();
+        self.tools.ffmpeg_path.clone()
     }
 
     pub fn is_running(&self) -> bool {
-        return self.running;
+        self.running
     }
 
     pub fn has_succeeded_running(&self) -> bool {
-        return self.success;
+        self.success
     }
 }
 

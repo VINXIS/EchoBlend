@@ -213,6 +213,7 @@ fn execute_ffmpeg_command(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn final_cmd_builder(
     intro_file_name: &str,
     loop_file_name: &str,
@@ -251,7 +252,7 @@ fn final_cmd_builder(
         }
     } else {
         // Create an ffmpeg concat list txt file
-        let mut concat_list = std::fs::File::create(&concat_list_file_name).unwrap();
+        let mut concat_list = std::fs::File::create(concat_list_file_name).unwrap();
         concat_list
             .write_all(format!("file '{}'\n", &intro_file_name).as_bytes())
             .unwrap();
@@ -291,5 +292,6 @@ fn final_cmd_builder(
         }
         cmd.push(output_path.to_owned());
     }
-    return cmd;
+
+    cmd
 }
