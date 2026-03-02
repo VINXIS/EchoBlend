@@ -227,7 +227,7 @@ fn final_cmd_builder(
     let mut cmd: Vec<String> = vec!["-y".to_owned()];
     if is_test {
         if crossfade_s > 0.0 {
-            cmd.append(&mut vec![
+            cmd.extend([
                 "-i".to_owned(),
                 intro_file_name.to_owned(),
                 "-i".to_owned(),
@@ -239,7 +239,7 @@ fn final_cmd_builder(
                 output_path.to_owned(),
             ]);
         } else {
-            cmd.append(&mut vec![
+            cmd.extend([
                 "-i".to_owned(),
                 intro_file_name.to_owned(),
                 "-i".to_owned(),
@@ -274,7 +274,7 @@ fn final_cmd_builder(
             .write_all(format!("file '{}'\n", &outro_file_name).as_bytes())
             .unwrap();
 
-        cmd.append(&mut vec![
+        cmd.extend([
             "-f".to_owned(),
             "concat".to_owned(),
             "-safe".to_owned(),
