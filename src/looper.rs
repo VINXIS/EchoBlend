@@ -181,8 +181,8 @@ pub fn create_loop(
             &tx,
             "Merging segments...",
             &ffmpeg_path,
-            &cmd,
-            thread_finished
+            &cmd.iter().map(String::as_str).collect::<Vec<&str>>(),
+            &thread_finished
         );
 
         tx.send(Ok(app::ConsoleText::Program(
@@ -213,40 +213,40 @@ fn execute_ffmpeg_command(
     }
 }
 
-fn final_cmd_builder<'a>(
-    intro_file_name: &'a str,
-    loop_file_name: &'a str,
+fn final_cmd_builder(
+    intro_file_name: &str,
+    loop_file_name: &str,
     loop_count: u8,
     crossfade_s: f32,
-    crossfade_file_name: &'a str,
-    outro_file_name: &'a str,
-    concat_list_file_name: &'a str,
-    output_path: &'a str,
+    crossfade_file_name: &str,
+    outro_file_name: &str,
+    concat_list_file_name: &str,
+    output_path: &str,
     is_test: bool,
-) -> Vec<&'a str> {
-    let mut cmd = vec!["-y"];
+) -> Vec<String> {
+    let mut cmd: Vec<String> = vec!["-y".to_owned()];
     if is_test {
         if crossfade_s > 0.0 {
             cmd.append(&mut vec![
-                "-i",
-                &intro_file_name,
-                "-i",
-                &crossfade_file_name,
-                "-i",
-                &outro_file_name,
-                "-filter_complex",
-                "concat=n=3:v=0:a=1",
-                &output_path,
+                "-i".to_owned(),
+                intro_file_name.to_owned(),
+                "-i".to_owned(),
+                crossfade_file_name.to_owned(),
+                "-i".to_owned(),
+                outro_file_name.to_owned(),
+                "-filter_complex".to_owned(),
+                "concat=n=3:v=0:a=1".to_owned(),
+                output_path.to_owned(),
             ]);
         } else {
             cmd.append(&mut vec![
-                "-i",
-                &intro_file_name,
-                "-i",
-                &outro_file_name,
-                "-filter_complex",
-                "concat=n=2:v=0:a=1",
-                &output_path,
+                "-i".to_owned(),
+                intro_file_name.to_owned(),
+                "-i".to_owned(),
+                outro_file_name.to_owned(),
+                "-filter_complex".to_owned(),
+                "concat=n=2:v=0:a=1".to_owned(),
+                output_path.to_owned(),
             ]);
         }
     } else {
@@ -275,21 +275,21 @@ fn final_cmd_builder<'a>(
             .unwrap();
 
         cmd.append(&mut vec![
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            &concat_list_file_name,
+            "-f".to_owned(),
+            "concat".to_owned(),
+            "-safe".to_owned(),
+            "0".to_owned(),
+            "-i".to_owned(),
+            concat_list_file_name.to_owned(),
         ]);
         if output_path.ends_with(".mp3") {
-            cmd.push("-q:a");
-            cmd.push("2");
+            cmd.push("-q:a".to_owned());
+            cmd.push("2".to_owned());
         } else {
-            cmd.push("-c");
-            cmd.push("copy");
+            cmd.push("-c".to_owned());
+            cmd.push("copy".to_owned());
         }
-        cmd.push(&output_path);
+        cmd.push(output_path.to_owned());
     }
     return cmd;
 }
